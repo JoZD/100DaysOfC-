@@ -1,0 +1,14 @@
+id: unassociated_eips
+name: "Unassociated Elastic IPs"
+category: waste
+risk: low
+effort: low
+remediation_action_template: "aws ec2 release-address --region {region} --allocation-id {resource_id}  # confirm it's no longer needed first"
+query: |
+  SELECT
+    allocation_id AS resource_id,
+    region,
+    public_ip,
+    3.6 AS monthly_savings_usd
+  FROM ec2_addresses
+  WHERE association_id IS NULL

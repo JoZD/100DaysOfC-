@@ -1,0 +1,21 @@
+id: orphaned_ebs_volumes
+name: "Unattached EBS volumes"
+category: waste
+risk: low
+effort: low
+remediation_action_template: "aws ec2 delete-volume --region {region} --volume-id {resource_id}  # confirm it's no longer needed first"
+query: |
+  SELECT
+    volume_id AS resource_id,
+    region,
+    size_gb,
+    volume_type,
+    ROUND(size_gb * CASE volume_type
+      WHEN 'gp3' THEN 0.08
+      WHEN 'gp2' THEN 0.10
+      WHEN 'io1' THEN 0.125
+      WHEN 'io2' THEN 0.125
+      ELSE 0.10
+    END, 2) AS monthly_savings_usd
+  FROM ec2_volumes
+  WHERE state = 'available'

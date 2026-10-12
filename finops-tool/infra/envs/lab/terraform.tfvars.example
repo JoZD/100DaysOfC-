@@ -1,0 +1,7 @@
+# Copy to accounts/<name>.tfvars (ignored by git). One file per (simulated) customer account.
+aws_profile         = "cliente-demo"
+expected_account_id = "222222222222"
+region              = "us-east-1"
+lab_name            = "finops-lab"
+# secondary_region  = "us-west-2"
+# create_controls   = false   # if the region has no default VPC

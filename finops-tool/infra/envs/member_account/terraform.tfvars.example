@@ -1,0 +1,8 @@
+aws_profile         = "AdminProfile"
+expected_account_id = "222222222222"
+account_name        = "lab-a"
+# Copy from the account page in the dashboard (Accounts -> the account).
+external_id = "paste the ExternalId shown on the account page"
+# Scanner identity: the scanner_identity output (own machine) or the EC2 host role.
+host_role_arn = "arn:aws:iam::111111111111:role/FinOps-Scanner"
+# SSO scanner instead: trusted_principal_arn_pattern = "arn:aws:iam::111111111111:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_AdministratorAccess_0123456789abcdef"

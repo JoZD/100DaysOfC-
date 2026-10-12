@@ -1,0 +1,112 @@
+# The whole FinOps Tool stack. Same file on a development VM and on the
+# server; behavior differs only through .env (see .env.example / docs/DEPLOY_DEBIAN.md).
+#
+#   docker compose up -d --build          # start / upgrade
+#   docker compose logs -f scanner        # watch scans
+#   docker compose run --rm api python -m scripts.admin list
+#
+# Postgres and the API bind to 127.0.0.1 only. The web UI binds to
+# WEB_BIND_ADDRESS (default 127.0.0.1; set 0.0.0.0 in .env to reach it from the
+# LAN at http://<host-ip>:WEB_PORT). The browser never talks to the API directly.
+
+name: ${COMPOSE_PROJECT_NAME:-finops}
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg2://finops_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/finops
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  # Signs dashboard session tokens (services/api/auth.py).
+  AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+  SESSION_HOURS: ${SESSION_HOURS:-12}
+  # Web onboarding: a signed-in user without a workspace may create one.
+  ALLOW_TENANT_SIGNUP: ${ALLOW_TENANT_SIGNUP:-true}
+  # Optional exact trust principal when the VM role has a non-default IAM path.
+  SOURCE_ROLE_ARN: ${SOURCE_ROLE_ARN:-}
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: finops
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finops -d finops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies pending migrations/*.sql as the admin user, then exits.
+  migrate:
+    build: .
+    image: finops-backend
+    command: ["python", "-m", "scripts.apply_migrations"]
+    environment:
+      ADMIN_DATABASE_URL: postgresql+psycopg2://finops:${POSTGRES_PASSWORD}@postgres:5432/finops
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Also calls AWS (read-only): the dashboard's "Verify connection" and
+  # "Scan now" use the same credential chain and scanner code as `scanner`.
+  api:
+    image: finops-backend
+    restart: unless-stopped
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # Scans every scan_enabled AWS account on a fixed interval, using the
+  # standard boto3 credential chain to call sts:AssumeRole. The default is
+  # the VM instance role (IMDS); see docs/DEPLOY_DEBIAN.md §5 for other providers.
+  scanner:
+    image: finops-backend
+    profiles: ["scanner"]
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      SCAN_INTERVAL_SECONDS: ${SCAN_INTERVAL_SECONDS:-21600}
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          echo "=== scan started $$(date -u +%FT%TZ)"
+          python -m services.rules_engine.runner --all || echo "=== scan finished with failures"
+          echo "=== next scan in $${SCAN_INTERVAL_SECONDS}s"
+          sleep "$${SCAN_INTERVAL_SECONDS}"
+        done
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build: ./web
+    image: finops-web
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8000
+      # true only when users reach the UI over HTTPS (e.g. behind a TLS proxy).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

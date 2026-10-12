@@ -1,0 +1,9 @@
+# Optional: forward an already-authenticated shell's TEMPORARY credentials.
+# Never store these in .env. Recreate scanner and api after refreshing credentials.
+services:
+  scanner: &aws
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+  api: *aws

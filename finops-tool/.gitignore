@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+.env.*.local
+!.env.example
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+*.tfvars
+
+# Node / Next.js
+node_modules/
+.next/
+next-env.d.ts
+
+# OS
+.DS_Store
+
+# Backups
+*.dump
+*.tsbuildinfo

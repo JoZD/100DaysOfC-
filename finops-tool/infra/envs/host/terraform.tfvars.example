@@ -1,0 +1,6 @@
+region                   = "us-east-1"
+vpc_id                   = "vpc-0123456789abcdef0"
+subnet_id                = "subnet-0123456789abcdef0" # private subnet with NAT
+associate_public_ip      = false
+host_account_name        = "shared-services"
+host_account_external_id = "paste output of: python -m scripts.admin gen-external-id"

@@ -1,0 +1,23 @@
+# Optional: give api + scanner an AWS profile directory from this machine.
+#   - Own machine without SSO (docs/LAB.md): AWS_PROFILE_DIR is a directory that
+#     scripts/refresh_scanner_credentials.sh fills with TEMPORARY FinOps-Scanner
+#     credentials. Never point it at a ~/.aws holding IAM user keys.
+#   - SSO: AWS_PROFILE_DIR=~/.aws (absolute path); log in with `aws sso login`.
+# Containers run as your host UID so they can read these 0600 files.
+# Enable in .env with:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.aws-profile.yml
+#   FINOPS_AWS_PROFILE=finops-scanner  AWS_PROFILE_DIR=/abs/dir  HOST_UID=$(id -u)  HOST_GID=$(id -g)
+# (FINOPS_AWS_PROFILE, not AWS_PROFILE: an exported shell AWS_PROFILE would win over .env.)
+services:
+  scanner: &aws
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      AWS_PROFILE: ${FINOPS_AWS_PROFILE:-finops-scanner}
+      HOME: /home/finops
+      AWS_CONFIG_FILE: /home/finops/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/finops/.aws/credentials
+    volumes:
+      - type: bind
+        source: ${AWS_PROFILE_DIR:?set AWS_PROFILE_DIR in .env (absolute path)}
+        target: /home/finops/.aws
+  api: *aws
